@@ -4,7 +4,8 @@
 // - add CLI for easier usage
 // - potentially package and deploy
 import inquirer from 'inquirer';
-
+import gradient, { pastel } from 'gradient-string';
+import chalk from 'chalk';
 
 const title = `
  ██░ ██ ▓█████  ██▀███   ███▄ ▄███▓▓█████   ██████ 
@@ -20,49 +21,117 @@ const title = `
 
 
 type DiscordWebhookPayload = {
-    content: string
+    content: string,
 }
 
-const myPayload: DiscordWebhookPayload = { content: "CONTENT_HERE!" }
+type InputAnswer = {
+    value: string,
+}
 
 class FlxWspam {
-    private webhookURL: string = "REMOVED" // place webhook url here
+    private webhookURL: string // place webhook url here
+    private count: number;
+    private payload: DiscordWebhookPayload;
 
-    public async sendPayload(): Promise<void> {
-        try {
-            const response = await fetch(this.webhookURL, {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify(myPayload)
-                    });
+    constructor() {
+        this.webhookURL = "";
+        this.count = 1;
+        this.payload = { content: "fluxium.ru for more! "};
+    }
 
-                    if (response.ok) {
-                        console.log('Message sent successfully!');
-                    } else {
-                        // server responded w error
-                        console.error('Error encountered, failed: ', response.status, response.statusText);
-                    }
-        } catch (error) {
-            // network or other errors
-            console.error('Error sending message: ', error);
+    public async sendPayload(payload: DiscordWebhookPayload, count: number): Promise<void> {
+        for (let i = 0; i < count; i++) {
+            try {
+                const response = await fetch(this.webhookURL, {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                            },
+                            body: JSON.stringify(payload)
+                        });
+
+                        if (response.ok) {
+                            console.log('Message sent successfully!');
+                        } else {
+                            // server responded w error
+                            console.error('Error encountered, failed: ', response.status, response.statusText);
+                        }
+            } catch (error) {
+                // network or other errors
+                console.error('Error sending message: ', error);
+            }
         }
     };
 
-    public async init() {
-        console.log(title);
+    public async renderMenu() {
+        console.clear();
+        console.log(pastel.multiline(title));
         const answers = await inquirer.prompt([
             {
                 type: 'select',
                 name: 'optionMenu1',
                 message: 'Choose an option:',
-                choices: ['Set URL', 'Set Count', 'Set Content', 'Send']
+                choices: [
+                    {
+                        name: `Set URL | ${chalk.green(this.webhookURL) || chalk.red("not set")}`,
+                        value: "SET_URL"
+                    },
+                    {
+                        name: `Set Count | ${chalk.green(this.count) || chalk.red("not set")}`,
+                        value: "SET_COUNT"
+                    },
+                    {
+                        name: `Set Content | ${chalk.green(this.payload.content) || chalk.red("not set")}`,
+                        value: "SET_CONTENT"
+                    },
+                    {
+                        name: "Send",
+                        value: "SEND"
+                    },
+                    {
+                        name: "Quit",
+                        value: "QUIT"
+                    }
+                ]
             }
-        ])
-        console.log(answers.optionMenu1);
+        ]);
+        switch (answers.optionMenu1) {
+            case "SET_URL":
+                this.webhookURL = await this.askInput("Enter webhook URL: ");
+                console.log(chalk.green("Webhook URL set."));
+                console.clear();
+                break;
+
+            case "SET_COUNT":
+                this.count = Number(await this.askInput("Enter message count: "));
+                break;
+            
+            case "SET_CONTENT":
+                this.payload = { content: await this.askInput("Enter message content: ") };
+                break;
+
+            case "SEND":
+                await this.sendPayload(this.payload, this.count);
+                break;
+
+            case "QUIT":
+                process.exit(1);
+                break;
+        }
+        this.renderMenu();
+    }
+
+    public async askInput(prompt: string): Promise<string> {
+        const answer = await inquirer.prompt<InputAnswer>([
+            {
+                type: 'input',
+                name: 'value',
+                message: prompt,
+            }
+        ]);
+        return answer.value;
     }
 }
 
 const mySpam = new FlxWspam();
-mySpam.init();
+mySpam.renderMenu();
